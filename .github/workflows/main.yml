@@ -10,12 +10,8 @@ jobs:
       - name: install build essentials
         run:
           sudo apt update &&
-          sudo apt install gcc g++ libgtest-dev cmake make build-essential sed gcc-aarch64-linux-gnu g++-aarch64-linux-gnu  
+          sudo apt install gcc g++ libgtest-dev cmake make build-essential sed gcc-aarch64-linux-gnu g++-aarch64-linux-gnu  qemu-user
       
-      - name: install qemu
-        run:
-          sudo apt install qemu-user
-        
       - uses: actions/checkout@v3
 
       - name: clang format
@@ -23,4 +19,4 @@ jobs:
 
       - name: test
         run: |
-          cd Chapter01 && mkdir build && cd build && cmake .. && make -j8 && cd .. && qemu-aarch64 -L /usr/aarch64-linux-gnu ./build/WasmParser
+          cd Chapter01 && mkdir build && cd build && cmake .. -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ && make -j8 && cd .. && qemu-aarch64 -L /usr/aarch64-linux-gnu ./build/WasmParser
