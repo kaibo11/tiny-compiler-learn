@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
@@ -16,7 +17,7 @@ uint32_t readULEB128(const std::vector<uint8_t> &data, size_t &index) {
       throw std::out_of_range("ULEB128 encoding is incomplete or data is truncated.");
     }
 
-    uint8_t byte = data[index++];
+    const uint8_t byte = data[index++];
     result |= (byte & 0x7FU) << shift;
 
     if ((byte & 0x80U) == 0) {
@@ -53,7 +54,7 @@ std::vector<uint8_t> readFileToByteStream(const std::string &filePath) {
   }
 
   file.seekg(0, std::ios::end);
-  std::streamsize size = file.tellg();
+  const std::streamsize size = file.tellg();
   file.seekg(0, std::ios::beg);
 
   std::vector<uint8_t> buffer(size);
@@ -93,11 +94,11 @@ void execWasmFuncCode(const std::vector<uint8_t> &data, size_t index, size_t cod
 }
 
 int main() {
-  std::string filePath = "add.wasm";
+  std::string const filePath = "add.wasm";
 
   std::vector<uint8_t> byteStream = readFileToByteStream(filePath);
 
-  for (uint8_t byte : byteStream) {
+  for (uint8_t const byte : byteStream) {
     std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << ' ';
   }
   std::cout << std::dec << std::endl; // Reset to decimal output
@@ -122,21 +123,21 @@ int main() {
     case 9:
     case 11: {
       byteIndex++;
-      uint32_t sectionSize = readULEB128(byteStream, byteIndex);
+      uint32_t const sectionSize = readULEB128(byteStream, byteIndex);
       byteIndex += sectionSize; // cut sectionContent
       break;
     }
     case 10: {
       byteIndex++;
-      uint32_t sectionSize = readULEB128(byteStream, byteIndex);
+      uint32_t const sectionSize = readULEB128(byteStream, byteIndex);
       static_cast<void>(sectionSize);
-      uint32_t functionSize = readULEB128(byteStream, byteIndex);
+      uint32_t const functionSize = readULEB128(byteStream, byteIndex);
       static_cast<void>(functionSize); // cut func size , assume only one function
-      uint32_t functionCodeSize = readULEB128(byteStream, byteIndex);
-      uint32_t localVarIndex = byteIndex;
-      uint32_t localVarSize = readULEB128(byteStream, byteIndex); // assume it should 0
+      uint32_t const functionCodeSize = readULEB128(byteStream, byteIndex);
+      uint32_t const localVarIndex = byteIndex;
+      uint32_t const localVarSize = readULEB128(byteStream, byteIndex); // assume it should 0
       static_cast<void>(localVarSize);
-      uint32_t opCodeIndex = byteIndex;
+      uint32_t const opCodeIndex = byteIndex;
       auto opCodeSize = localVarIndex + functionCodeSize - opCodeIndex;
       execWasmFuncCode(byteStream, opCodeIndex, opCodeSize);
       byteIndex += opCodeSize;
