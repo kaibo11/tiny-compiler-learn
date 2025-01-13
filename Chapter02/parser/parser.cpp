@@ -6,6 +6,7 @@
 #include <sys/mman.h>
 #include <vector>
 
+#include "ModuleInfo.hpp"
 #include "parser.hpp"
 
 uint32_t readULEB128(const std::vector<uint8_t> &data, size_t &index) {
@@ -33,7 +34,6 @@ uint32_t readULEB128(const std::vector<uint8_t> &data, size_t &index) {
 }
 
 void parseTypeSection(const std::vector<uint8_t> &byteStream, size_t &index, ModuleInfo &moduleInfo) {
-  static_cast<void>(moduleInfo);
   uint32_t const sectionSize = readULEB128(byteStream, index);
   static_cast<void>(sectionSize);
   uint32_t numTypeSize = readULEB128(byteStream, index);
@@ -102,6 +102,64 @@ void parseTypeSection(const std::vector<uint8_t> &byteStream, size_t &index, Mod
       index++;
     }
     std::cout << "get a funcSignatureType: " << funcSignatureType << std::endl;
+    moduleInfo.types.emplace_back(funcSignatureType);
+  }
+}
+
+void parseFunctionSection(const std::vector<uint8_t> &byteStream, size_t &index, ModuleInfo &moduleInfo) {
+  uint32_t const sectionSize = readULEB128(byteStream, index);
+  static_cast<void>(sectionSize);
+  uint32_t functionNums = readULEB128(byteStream, index);
+  moduleInfo.functionNums = functionNums;
+  std::cout << "get a functionNums: " << functionNums << std::endl;
+  while (functionNums-- > 0) {
+    uint32_t const functionIndex = readULEB128(byteStream, index);
+    moduleInfo.functionTypeIndexs.emplace_back(functionIndex);
+    std::cout << "get a functionIndex: " << functionIndex << std::endl;
+  }
+}
+
+void parseCodeSection(const std::vector<uint8_t> &byteStream, size_t &index, ModuleInfo &moduleInfo) {
+  uint32_t const sectionSize = readULEB128(byteStream, index);
+  static_cast<void>(sectionSize);
+  uint32_t functionSize = readULEB128(byteStream, index);
+  while (functionSize-- > 0) {
+    uint32_t const functionBodySize = readULEB128(byteStream, index);
+    static_cast<void>(functionBodySize);
+    uint32_t localVarSize = readULEB128(byteStream, index);
+    std::vector<ModuleInfo::LocalVar> localVars;
+    while (localVarSize-- > 0) {
+      uint32_t localVarRepeatTimes = readULEB128(byteStream, index);
+      uint8_t const localVarType = byteStream[index];
+      ModuleInfo::LocalVar localVar;
+      switch (localVarType) {
+      case 0x7F: {
+        localVar.wasmType = WasmType::I32;
+        break;
+      }
+      case 0x7E: {
+        localVar.wasmType = WasmType::I64;
+        break;
+      }
+      case 0x7D: {
+        localVar.wasmType = WasmType::F32;
+        break;
+      }
+      case 0x7C: {
+        localVar.wasmType = WasmType::F64;
+        break;
+      }
+      default: {
+        std::cout << "met unknown local var wasm typeexit.";
+        exit(1);
+      }
+      }
+      while (localVarRepeatTimes-- > 0) {
+        localVars.emplace_back(localVar);
+      }
+      index++;
+    }
+    moduleInfo.functionsLocalVars.emplace_back(std::move(localVars));
   }
 }
 
@@ -162,13 +220,11 @@ ModuleInfo processWasmFile(char *filePath) {
     case WASMSectionType::TYPE: {
       byteIndex++;
       parseTypeSection(byteStream, byteIndex, moduleInfo);
-      exit(1);
       break;
     }
     case WASMSectionType::FUNCTION: {
       byteIndex++;
-      uint32_t const sectionSize = readULEB128(byteStream, byteIndex);
-      byteIndex += sectionSize; // cut sectionContent
+      parseFunctionSection(byteStream, byteIndex, moduleInfo);
       break;
     }
     case WASMSectionType::CODE: {
@@ -183,6 +239,7 @@ ModuleInfo processWasmFile(char *filePath) {
       static_cast<void>(localVarSize);
       uint32_t const opCodeIndex = byteIndex;
       auto opCodeSize = localVarIndex + functionCodeSize - opCodeIndex;
+
       byteIndex += opCodeSize;
     }
     default:
