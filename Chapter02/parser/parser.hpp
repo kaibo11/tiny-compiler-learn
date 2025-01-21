@@ -29,4 +29,6 @@ std::vector<uint8_t> readFileToByteStream(const std::string &filePath);
 
 ModuleInfo processWasmFile(char *filePath);
 
+void compileOpCode(ModuleInfo &moduleInfo);
+
 #endif // WASM_PARSER_HPP

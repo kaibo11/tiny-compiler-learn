@@ -7,6 +7,11 @@
 #include <vector>
 
 #include "ModuleInfo.hpp"
+#include "OPCode.hpp"
+#include "Stack.hpp"
+#include "StackElement.hpp"
+#include "aarch64_assembler.hpp"
+#include "aarch64_common.hpp"
 #include "parser.hpp"
 
 uint32_t readULEB128(const std::vector<uint8_t> &data, size_t &index) {
@@ -102,7 +107,7 @@ void parseTypeSection(const std::vector<uint8_t> &byteStream, size_t &index, Mod
       index++;
     }
     std::cout << "get a funcSignatureType: " << funcSignatureType << std::endl;
-    moduleInfo.types.emplace_back(funcSignatureType);
+    moduleInfo.signatureTypes.emplace_back(funcSignatureType);
   }
 }
 
@@ -111,11 +116,10 @@ void parseFunctionSection(const std::vector<uint8_t> &byteStream, size_t &index,
   static_cast<void>(sectionSize);
   uint32_t functionNums = readULEB128(byteStream, index);
   moduleInfo.functionNums = functionNums;
-  std::cout << "get a functionNums: " << functionNums << std::endl;
+  std::cout << "get functionNums: " << functionNums << std::endl;
   while (functionNums-- > 0) {
     uint32_t const functionIndex = readULEB128(byteStream, index);
-    moduleInfo.functionTypeIndexs.emplace_back(functionIndex);
-    std::cout << "get a functionIndex: " << functionIndex << std::endl;
+    moduleInfo.functionInfos.emplace_back(ModuleInfo::FunctionInfo{functionIndex});
   }
 }
 
@@ -126,6 +130,7 @@ void parseCodeSection(const std::vector<uint8_t> &byteStream, size_t &index, Mod
   while (functionSize-- > 0) {
     uint32_t const functionBodySize = readULEB128(byteStream, index);
     static_cast<void>(functionBodySize);
+    uint32_t const localVarSizeIndex = index;
     uint32_t localVarSize = readULEB128(byteStream, index);
     std::vector<ModuleInfo::LocalVar> localVars;
     while (localVarSize-- > 0) {
@@ -160,6 +165,13 @@ void parseCodeSection(const std::vector<uint8_t> &byteStream, size_t &index, Mod
       index++;
     }
     moduleInfo.functionsLocalVars.emplace_back(std::move(localVars));
+    // localvars save end ,start wasm opCode save
+    uint32_t opCodeNums = functionBodySize - (index - localVarSizeIndex);
+    std::vector<uint8_t> functionInstructions;
+    while (opCodeNums-- > 0) {
+      functionInstructions.emplace_back(byteStream[index++]);
+    }
+    moduleInfo.functionsInstructions.emplace_back(std::move(functionInstructions));
   }
 }
 
@@ -229,18 +241,7 @@ ModuleInfo processWasmFile(char *filePath) {
     }
     case WASMSectionType::CODE: {
       byteIndex++;
-      uint32_t const sectionSize = readULEB128(byteStream, byteIndex);
-      static_cast<void>(sectionSize);
-      uint32_t const functionSize = readULEB128(byteStream, byteIndex);
-      static_cast<void>(functionSize); // cut func size , assume only one function
-      uint32_t const functionCodeSize = readULEB128(byteStream, byteIndex);
-      uint32_t const localVarIndex = byteIndex;
-      uint32_t const localVarSize = readULEB128(byteStream, byteIndex); // assume it should 0
-      static_cast<void>(localVarSize);
-      uint32_t const opCodeIndex = byteIndex;
-      auto opCodeSize = localVarIndex + functionCodeSize - opCodeIndex;
-
-      byteIndex += opCodeSize;
+      parseCodeSection(byteStream, byteIndex, moduleInfo);
     }
     default:
       break;
@@ -251,3 +252,190 @@ ModuleInfo processWasmFile(char *filePath) {
 
   return moduleInfo;
 }
+// compile opCode
+
+// 解析函数签名,并分配寄存器和内存，保存相关信息到functionInfo
+std::vector<ModuleInfo::LocalVar> parseFuncSignature(const std::string &signature, ModuleInfo::FunctionInfo &funcInfo) {
+  std::vector<ModuleInfo::LocalVar> funcParms;
+  for (int i = 1; i < signature.size(); i++) {
+    ModuleInfo::LocalVar funcParm;
+    switch (signature[i]) {
+    case 'i': {
+      funcParm.wasmType = WasmType::I32;
+      funcParm.reg = static_cast<TReg>(funcInfo.numLocalsInGPR++);
+      funcInfo.numParams++;
+      funcInfo.numLocals++;
+      break;
+    }
+    case 'I': {
+      funcParm.wasmType = WasmType::I64;
+      funcParm.reg = static_cast<TReg>(funcInfo.numLocalsInGPR++);
+      funcInfo.numParams++;
+      funcInfo.numLocals++;
+      break;
+    }
+    case 'f': {
+      funcParm.wasmType = WasmType::F32;
+      funcParm.reg = static_cast<TReg>(funcInfo.numLocalsInFPR++);
+      funcInfo.numParams++;
+      funcInfo.numLocals++;
+      break;
+    }
+    case 'F': {
+      funcParm.wasmType = WasmType::F64;
+      funcParm.reg = static_cast<TReg>(funcInfo.numLocalsInFPR++);
+      funcInfo.numParams++;
+      funcInfo.numLocals++;
+      break;
+    }
+    case ')': {
+      funcParm.wasmType = WasmType::INVALID;
+      i += 2; // break loop as only one return type (to do)
+      break;
+    }
+    default: {
+      break;
+    }
+    };
+    if (funcParm.wasmType == WasmType::INVALID) {
+      break;
+    }
+    funcParms.emplace_back(funcParm);
+  }
+  return funcParms;
+}
+
+// parse that already has wasmType (not function parms)
+void parseFuncLocalVars(std::vector<ModuleInfo::LocalVar> &funcLocalVars, ModuleInfo::FunctionInfo &funcInfo) {
+  for (auto &localVar : funcLocalVars) {
+    switch (localVar.wasmType) {
+    case WasmType::I32: {
+      localVar.reg = static_cast<TReg>(funcInfo.numLocalsInGPR++);
+      funcInfo.numLocals++;
+      break;
+    }
+    case WasmType::I64: {
+      localVar.reg = static_cast<TReg>(funcInfo.numLocalsInGPR++);
+      funcInfo.numLocals++;
+      break;
+    }
+    case WasmType::F32: {
+      localVar.reg = static_cast<TReg>(funcInfo.numLocalsInFPR++);
+      funcInfo.numLocals++;
+      break;
+    }
+    case WasmType::F64: {
+      localVar.reg = static_cast<TReg>(funcInfo.numLocalsInFPR++);
+      funcInfo.numLocals++;
+      break;
+    }
+    default: {
+      std::cout << "error: unknown local var wasm type" << std::endl;
+      exit(1);
+      break;
+    }
+    };
+  }
+}
+
+void parseOpCode(const std::vector<uint8_t> &functionInstructionsCode, size_t index, const size_t funcIndex, ModuleInfo &moduleInfo) {
+  Stack stack;
+  AArch64_Assembler assembler(moduleInfo);
+  for (size_t i = index; i < index;) {
+    switch (static_cast<OPCode>(functionInstructionsCode[i])) {
+    case OPCode::I32_CONST: {
+      i++;
+      uint32_t i32ConstValue = readULEB128(functionInstructionsCode, i);
+      StackElement stackElement;
+      stackElement.type = StackType::CONSTANT_I32;
+      stackElement.data.constUnion.u32 = i32ConstValue;
+      stack.push(stackElement);
+      break;
+    }
+    case OPCode::I64_CONST: {
+      i++;
+      uint64_t i64ConstValue = readULEB128(functionInstructionsCode, i);
+      StackElement stackElement;
+      stackElement.type = StackType::CONSTANT_I64;
+      stackElement.data.constUnion.u64 = i64ConstValue;
+      stack.push(stackElement);
+      break;
+    }
+    case OPCode::LOCAL_GET: {
+      i++;
+      uint32_t localIndex = readULEB128(functionInstructionsCode, i);
+      StackElement stackElement;
+      stackElement.type = StackType::LOCAL;
+
+      StackElement::VariableData data;
+      stackElement.variableData.location.localIdx = localIndex;
+      stackElement.variableData.location.reg = moduleInfo.functionsLocalVars[funcIndex][localIndex].reg;
+      stack.push(stackElement);
+      break;
+    }
+    case OPCode::LOCAL_SET: { // pop stack and set value
+      i++;
+      uint32_t localIndex = readULEB128(functionInstructionsCode, i);
+      if (stack.empty()) {
+        std::cout << "error: stack is empty, parse LOCAL_SET error" << std::endl;
+        exit(1);
+      }
+      const StackElement &stackElement = stack.top();
+      switch (static_cast<uint32_t>(stackElement.type)) {
+      case StackType::CONSTANT_I32: {
+        auto const constValue = stackElement.data.constUnion.u32;
+        assembler.MOVimm(false, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg, constValue);
+        break;
+      }
+      case StackType::CONSTANT_I64: {
+        auto const constValue = stackElement.data.constUnion.u64;
+        assembler.MOVimm(true, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg, constValue);
+        break;
+      }
+      case StackType::LOCAL: {
+        auto const constValue = stackElement.variableData.location.localIdx;
+        assembler.MOVimm(true, moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg, constValue);
+        break;
+      }
+      default: {
+        std::cout << "error: unknown op code" << std::endl;
+        exit(1);
+        break;
+      }
+      }
+      for (auto &byte : functionInstructionsCode) {
+      };
+    }
+    }
+
+    // std::vector<uint8_t> parseFunctionInstructions(const std::vector<uint8_t> &functionInstructionsCode, ModuleInfo::FunctionInfo &funcInfo) {
+    //   Stack stack;
+    //   while ()
+    //     for (auto &byte : functionInstructionsCode) {
+    //       switch (static_cast<OPCode>(byte)) {
+    //       case OPCode::I32_CONST: {
+    //         stack.push(StackElement{.type}) break;
+    //       }
+    //       default: {
+    //         std::cout << "error: unknown op code" << std::endl;
+    //         exit(1);
+    //         break;
+    //       }
+    //       };
+    //     }
+    // }
+
+    void compileOpCode(ModuleInfo & moduleInfo) {
+      std::cout << "compile opCode start." << std::endl;
+
+      for (int i = 0; i < moduleInfo.functionsInstructions.size(); i++) {
+        auto &singlefunctionLocalVars = moduleInfo.functionsLocalVars[i];
+        std::string &functionSignatureType = moduleInfo.signatureTypes[moduleInfo.functionInfos[i].typeIndex];
+
+        std::vector<ModuleInfo::LocalVar> funcParmLocals = parseFuncSignature(functionSignatureType, moduleInfo.functionInfos[i]);
+        parseFuncLocalVars(singlefunctionLocalVars, moduleInfo.functionInfos[i]);
+        funcParmLocals.insert(funcParmLocals.end(), moduleInfo.functionsLocalVars[i].begin(), moduleInfo.functionsLocalVars[i].end());
+        moduleInfo.functionsLocalVars[i] = std::move(funcParmLocals);
+        std::cout << "gkb print local var size" << moduleInfo.functionsLocalVars[i].size() << std::endl;
+      }
+    }

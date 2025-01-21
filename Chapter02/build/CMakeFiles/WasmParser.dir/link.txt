@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/WasmParser.dir/main.cpp.o CMakeFiles/WasmParser.dir/parser/parser.cpp.o -o WasmParser 

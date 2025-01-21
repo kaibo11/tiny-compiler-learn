@@ -1,0 +1,3 @@
+/home/vboxuser/work/atc-github/tiny-compiler/Chapter02/build/CMakeFiles/WasmParser.dir
+/home/vboxuser/work/atc-github/tiny-compiler/Chapter02/build/CMakeFiles/edit_cache.dir
+/home/vboxuser/work/atc-github/tiny-compiler/Chapter02/build/CMakeFiles/rebuild_cache.dir
