@@ -1,17 +1,9 @@
 #include <cstdint>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <stdexcept>
 #include <sys/mman.h>
 #include <vector>
 
 #include "ModuleInfo.hpp"
-#include "OPCode.hpp"
-#include "Stack.hpp"
-#include "StackElement.hpp"
 #include "aarch64_common.hpp"
-#include "parser.hpp"
 
 class AArch64_Assembler {
 public:
@@ -27,9 +19,21 @@ public:
   }
 
   // only support mov register to register
-  inline void MOVRegister(TReg const dst, TReg const src);
+  void MOVRegister(TReg const dst, TReg const src);
+
+  void Ret();
+
+  std::vector<uint8_t> getInstructions() {
+    return instructions_;
+  }
 
 private:
-  std::vector<uint32_t> instructions_;
+  void insertInstructionIntoVector(uint32_t instruction, std::vector<uint8_t> &vec) {
+    vec.push_back(static_cast<uint8_t>(instruction & 0xFFU));
+    vec.push_back(static_cast<uint8_t>((instruction >> 8U) & 0xFFU));
+    vec.push_back(static_cast<uint8_t>((instruction >> 16U) & 0xFFU));
+    vec.push_back(static_cast<uint8_t>((instruction >> 24U) & 0xFFU));
+  }
+  std::vector<uint8_t> instructions_;
   ModuleInfo &moduleInfo_;
 };

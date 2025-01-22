@@ -1,6 +1,3 @@
-#include <iostream>
-
-#include "StackElement.hpp"
 #include "aarch64_assembler.hpp"
 
 AArch64_Assembler::AArch64_Assembler(ModuleInfo &moduleInfo) : moduleInfo_(moduleInfo) {
@@ -21,12 +18,28 @@ void AArch64_Assembler::MOVimm(bool const is64, TReg const reg, uint64_t const i
 
   instruction |= (imm16 << 5U);
   instruction |= static_cast<uint8_t>(reg);
-  this->instructions_.emplace_back(instruction);
+
+  insertInstructionIntoVector(instruction, this->instructions_);
 }
 
-inline void AArch64_Assembler::MOVRegister(TReg const dst, TReg const src) {
+void AArch64_Assembler::MOVRegister(TReg const dst, TReg const src) {
   uint32_t instruction = 0x2A000000U;
 
   uint8_t shift = 0; // to do implement
   static_cast<void>(shift);
+  auto Rm = src;
+  auto Rd = dst;
+  uint8_t Rn = 0x1F; // 11111
+  uint8_t imm6 = 0;
+
+  instruction |= static_cast<uint8_t>(Rd);
+  instruction |= static_cast<uint16_t>(Rn << 5U);
+  instruction |= (static_cast<uint32_t>(Rm) << 16U);
+
+  insertInstructionIntoVector(instruction, this->instructions_);
+}
+
+void AArch64_Assembler::Ret() {
+  uint32_t instruction = 0xD65F03C0; // RET
+  insertInstructionIntoVector(instruction, this->instructions_);
 }

@@ -338,10 +338,30 @@ void parseFuncLocalVars(std::vector<ModuleInfo::LocalVar> &funcLocalVars, Module
   }
 }
 
-void parseOpCode(const std::vector<uint8_t> &functionInstructionsCode, size_t index, const size_t funcIndex, ModuleInfo &moduleInfo) {
+std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstructionsCode, size_t index, const size_t funcIndex, ModuleInfo &moduleInfo) {
   Stack stack;
   AArch64_Assembler assembler(moduleInfo);
-  for (size_t i = index; i < index;) {
+
+  for (size_t i = index; i < functionInstructionsCode.size();) {
+    // to do init all local variables
+    size_t const everInitlocalVariableIndex = moduleInfo.functionInfos[funcIndex].numParams;
+    for (size_t j = everInitlocalVariableIndex; j < moduleInfo.functionsLocalVars[funcIndex].size(); ++j) {
+      auto reg = moduleInfo.functionsLocalVars[funcIndex][j].reg;
+      switch (moduleInfo.functionsLocalVars[funcIndex][j].wasmType) {
+      case WasmType::I32: {
+        assembler.MOVimm(false, reg, 0);
+        break;
+      }
+      case WasmType::I64: {
+        assembler.MOVimm(true, reg, 0);
+        break;
+      }
+      default: {
+        throw std::runtime_error("Unsupport wasm type currently.");
+      }
+      }
+    }
+
     switch (static_cast<OPCode>(functionInstructionsCode[i])) {
     case OPCode::I32_CONST: {
       i++;
@@ -350,6 +370,7 @@ void parseOpCode(const std::vector<uint8_t> &functionInstructionsCode, size_t in
       stackElement.type = StackType::CONSTANT_I32;
       stackElement.data.constUnion.u32 = i32ConstValue;
       stack.push(stackElement);
+      std::cout << "i32ConstValue push to stack" << i32ConstValue << std::endl;
       break;
     }
     case OPCode::I64_CONST: {
@@ -359,6 +380,7 @@ void parseOpCode(const std::vector<uint8_t> &functionInstructionsCode, size_t in
       stackElement.type = StackType::CONSTANT_I64;
       stackElement.data.constUnion.u64 = i64ConstValue;
       stack.push(stackElement);
+      std::cout << "i64ConstValue push to stack" << i64ConstValue << std::endl;
       break;
     }
     case OPCode::LOCAL_GET: {
@@ -371,9 +393,11 @@ void parseOpCode(const std::vector<uint8_t> &functionInstructionsCode, size_t in
       stackElement.variableData.location.localIdx = localIndex;
       stackElement.variableData.location.reg = moduleInfo.functionsLocalVars[funcIndex][localIndex].reg;
       stack.push(stackElement);
+      std::cout << "LOCAL_GET push to stack" << localIndex << std::endl;
       break;
     }
     case OPCode::LOCAL_SET: { // pop stack and set value
+      std::cout << "LOCAL_SET start to handle" << std::endl;
       i++;
       uint32_t localIndex = readULEB128(functionInstructionsCode, i);
       if (stack.empty()) {
@@ -393,8 +417,9 @@ void parseOpCode(const std::vector<uint8_t> &functionInstructionsCode, size_t in
         break;
       }
       case StackType::LOCAL: {
-        auto const constValue = stackElement.variableData.location.localIdx;
-        assembler.MOVimm(true, moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg, constValue);
+        // to do if local var in stack.
+        assembler.MOVRegister(moduleInfo.functionsLocalVars[funcIndex][localIndex].reg,
+                              moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
         break;
       }
       default: {
@@ -403,39 +428,76 @@ void parseOpCode(const std::vector<uint8_t> &functionInstructionsCode, size_t in
         break;
       }
       }
-      for (auto &byte : functionInstructionsCode) {
-      };
     }
-    }
-
-    // std::vector<uint8_t> parseFunctionInstructions(const std::vector<uint8_t> &functionInstructionsCode, ModuleInfo::FunctionInfo &funcInfo) {
-    //   Stack stack;
-    //   while ()
-    //     for (auto &byte : functionInstructionsCode) {
-    //       switch (static_cast<OPCode>(byte)) {
-    //       case OPCode::I32_CONST: {
-    //         stack.push(StackElement{.type}) break;
-    //       }
-    //       default: {
-    //         std::cout << "error: unknown op code" << std::endl;
-    //         exit(1);
-    //         break;
-    //       }
-    //       };
-    //     }
-    // }
-
-    void compileOpCode(ModuleInfo & moduleInfo) {
-      std::cout << "compile opCode start." << std::endl;
-
-      for (int i = 0; i < moduleInfo.functionsInstructions.size(); i++) {
-        auto &singlefunctionLocalVars = moduleInfo.functionsLocalVars[i];
-        std::string &functionSignatureType = moduleInfo.signatureTypes[moduleInfo.functionInfos[i].typeIndex];
-
-        std::vector<ModuleInfo::LocalVar> funcParmLocals = parseFuncSignature(functionSignatureType, moduleInfo.functionInfos[i]);
-        parseFuncLocalVars(singlefunctionLocalVars, moduleInfo.functionInfos[i]);
-        funcParmLocals.insert(funcParmLocals.end(), moduleInfo.functionsLocalVars[i].begin(), moduleInfo.functionsLocalVars[i].end());
-        moduleInfo.functionsLocalVars[i] = std::move(funcParmLocals);
-        std::cout << "gkb print local var size" << moduleInfo.functionsLocalVars[i].size() << std::endl;
+    case OPCode::END: {
+      i++;
+      if (!stack.empty()) {
+        const StackElement &stackElement = stack.top();
+        switch (static_cast<uint32_t>(stackElement.type)) {
+        case StackType::CONSTANT_I32: {
+          auto const constValue = stackElement.data.constUnion.u32;
+          assembler.MOVimm(false, TReg::R0, constValue);
+          break;
+        }
+        case StackType::CONSTANT_I64: {
+          auto const constValue = stackElement.data.constUnion.u64;
+          assembler.MOVimm(true, TReg::R0, constValue);
+          break;
+        }
+        case StackType::LOCAL: {
+          // to do if local var in stack.
+          std::cout << "function end and move register and print" << std::endl;
+          assembler.MOVRegister(TReg::R0, moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
+          auto vec = assembler.getInstructions();
+          for (auto &byte : vec) {
+            std::cout << std::hex << static_cast<int>(byte) << " " << std::endl;
+          }
+          break;
+        }
+        default: {
+          std::cout << "error: stackElement type" << std::endl;
+          exit(1);
+          break;
+        }
+        }
       }
+      assembler.Ret();
+      break;
     }
+    default: {
+      std::cout << "error: unknown op code is " << static_cast<uint32_t>(functionInstructionsCode[i]) << std::endl;
+      throw std::runtime_error("unknown OPCode.");
+      break;
+    }
+    }
+  }
+  return assembler.getInstructions();
+}
+
+void compileOpCode(ModuleInfo &moduleInfo) {
+  std::cout << "compile opCode start." << std::endl;
+
+  for (int i = 0; i < moduleInfo.functionsInstructions.size(); i++) {
+    auto &singlefunctionLocalVars = moduleInfo.functionsLocalVars[i];
+    std::string &functionSignatureType = moduleInfo.signatureTypes[moduleInfo.functionInfos[i].typeIndex];
+
+    std::vector<ModuleInfo::LocalVar> funcParmLocals = parseFuncSignature(functionSignatureType, moduleInfo.functionInfos[i]);
+    parseFuncLocalVars(singlefunctionLocalVars, moduleInfo.functionInfos[i]);
+    funcParmLocals.insert(funcParmLocals.end(), moduleInfo.functionsLocalVars[i].begin(), moduleInfo.functionsLocalVars[i].end());
+    moduleInfo.functionsLocalVars[i] = std::move(funcParmLocals);
+    std::cout << "gkb print local var size" << moduleInfo.functionsLocalVars[i].size() << std::endl;
+
+    auto instructions = parseOpCode(moduleInfo.functionsInstructions[i], 0, i, moduleInfo);
+
+    uint32_t (*func)() = nullptr;
+    func =
+        reinterpret_cast<uint32_t (*)()>(mmap(nullptr, instructions.size(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    memcpy(reinterpret_cast<void *>(func), instructions.data(), instructions.size());
+    __builtin___clear_cache(reinterpret_cast<char *>(func), reinterpret_cast<char *>(func) + instructions.size());
+    auto functionResult = func();
+
+    std::cout << "function result is" << functionResult << std::endl;
+
+    munmap(reinterpret_cast<void *>(func), instructions.size() * 4);
+  }
+}
