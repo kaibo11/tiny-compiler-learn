@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -69,6 +70,12 @@ public:
   std::vector<std::vector<uint8_t>> functionsInstructions;
   std::vector<FunctionInfo> functionInfos;
   // every index is func end
+
+  std::vector<std::vector<uint8_t>> machineCodes;
+
+  // 函数名称到函数索引
+  std::map<size_t, std::string> functionsIndexName;
+  std::map<std::string, size_t> functionsNameIndex;
 };
 
 #endif

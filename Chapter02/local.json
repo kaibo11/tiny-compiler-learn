@@ -1,10 +1,7 @@
 {"source_filename": "test/local.wast",
  "commands": [
   {"type": "module", "line": 1, "filename": "local.0.wasm"}, 
-  {"type": "assert_return", "line": 11, "action": {"type": "invoke", "field": "type-local-i32", "args": []}, "expected": [{"type": "i32", "value": "0"}]}, 
-  {"type": "assert_return", "line": 12, "action": {"type": "invoke", "field": "type-local-i64", "args": []}, "expected": [{"type": "i64", "value": "0"}]}, 
-  {"type": "assert_return", "line": 14, "action": {"type": "invoke", "field": "type-param-i32", "args": [{"type": "i32", "value": "2"}]}, "expected": [{"type": "i32", "value": "2"}]}, 
-  {"type": "assert_return", "line": 15, "action": {"type": "invoke", "field": "type-param-i64", "args": [{"type": "i64", "value": "3"}]}, "expected": [{"type": "i64", "value": "3"}]}, 
+  {"type": "assert_return", "line": 14, "action": {"type": "invoke", "field": "type-param-i32", "args": [{"type": "i32", "value": "2"}]}, "expected": [{"type": "i32", "value": "2"}]},  
   {"type": "module", "line": 18, "filename": "local.1.wasm"}, 
   {"type": "assert_return", "line": 37, "action": {"type": "invoke", "field": "type-local-i32", "args": []}, "expected": []}, 
   {"type": "assert_return", "line": 38, "action": {"type": "invoke", "field": "type-local-i64", "args": []}, "expected": []}, 

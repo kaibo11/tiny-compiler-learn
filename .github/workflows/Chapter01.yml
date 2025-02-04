@@ -4,7 +4,7 @@ on:
   pull_request:
  
 jobs:
-  test:
+  Chapter01:
     runs-on: ubuntu-latest
     steps:
       - name: install build essentials

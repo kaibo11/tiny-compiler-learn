@@ -27,7 +27,7 @@ void parseTypeSection(const std::vector<uint8_t> &byteStream, size_t &index, Mod
 
 std::vector<uint8_t> readFileToByteStream(const std::string &filePath);
 
-ModuleInfo processWasmFile(char *filePath);
+ModuleInfo processWasmFile(const char *filePath);
 
 void compileOpCode(ModuleInfo &moduleInfo);
 

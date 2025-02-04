@@ -18,6 +18,18 @@ public:
     MOVimm(true, reg, imm);
   }
 
+  // stp  x29, x30, [sp, -16]!
+  void stpSpecial1();
+
+  // mov  x29, sp
+  void moveSpecial1();
+
+  // ldp  x29, x30, [sp], 16
+  void ldpSpecial1();
+
+  // bl imm28 = 3
+  void blSpecial1();
+
   // only support mov register to register
   void MOVRegister(TReg const dst, TReg const src);
 
@@ -28,12 +40,7 @@ public:
   }
 
 private:
-  void insertInstructionIntoVector(uint32_t instruction, std::vector<uint8_t> &vec) {
-    vec.push_back(static_cast<uint8_t>(instruction & 0xFFU));
-    vec.push_back(static_cast<uint8_t>((instruction >> 8U) & 0xFFU));
-    vec.push_back(static_cast<uint8_t>((instruction >> 16U) & 0xFFU));
-    vec.push_back(static_cast<uint8_t>((instruction >> 24U) & 0xFFU));
-  }
+  void insertInstructionIntoVector(uint32_t instruction, std::vector<uint8_t> &vec);
   std::vector<uint8_t> instructions_;
   ModuleInfo &moduleInfo_;
 };

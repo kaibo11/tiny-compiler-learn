@@ -111,6 +111,27 @@ void parseTypeSection(const std::vector<uint8_t> &byteStream, size_t &index, Mod
   }
 }
 
+void parseExportSection(const std::vector<uint8_t> &byteStream, size_t &index, ModuleInfo &moduleInfo) {
+  uint32_t const sectionSize = readULEB128(byteStream, index);
+  static_cast<void>(sectionSize);
+  uint32_t exportNums = readULEB128(byteStream, index);
+  while (exportNums-- > 0) {
+    std::string fieldName;
+    char c;
+    while (true) {
+      c = static_cast<char>(byteStream[index++]);
+      if (c == 0x00) { // get export name
+        const size_t funcIndex = byteStream[index++];
+        moduleInfo.functionsIndexName.emplace(std::make_pair(funcIndex, fieldName));
+        moduleInfo.functionsNameIndex.emplace(std::make_pair(fieldName, funcIndex));
+        std::cout << "get export name: " << fieldName << ", funcIndex: " << funcIndex << std::endl;
+        break;
+      }
+      fieldName.push_back(c);
+    }
+  }
+}
+
 void parseFunctionSection(const std::vector<uint8_t> &byteStream, size_t &index, ModuleInfo &moduleInfo) {
   uint32_t const sectionSize = readULEB128(byteStream, index);
   static_cast<void>(sectionSize);
@@ -195,7 +216,7 @@ std::vector<uint8_t> readFileToByteStream(const std::string &filePath) {
   return buffer;
 }
 
-ModuleInfo processWasmFile(char *filePath) {
+ModuleInfo processWasmFile(const char *filePath) {
   std::vector<uint8_t> byteStream = readFileToByteStream(filePath);
 
   std::cout << "print bytestream for file: " << filePath << std::endl;
@@ -220,13 +241,17 @@ ModuleInfo processWasmFile(char *filePath) {
     case WASMSectionType::TABLE:
     case WASMSectionType::MEMORY:
     case WASMSectionType::GLOBAL:
-    case WASMSectionType::EXPORT:
     case WASMSectionType::START:
     case WASMSectionType::ELEM:
     case WASMSectionType::DATA: {
       byteIndex++;
       uint32_t const sectionSize = readULEB128(byteStream, byteIndex);
       byteIndex += sectionSize; // cut sectionContent
+      break;
+    }
+    case WASMSectionType::EXPORT: {
+      byteIndex++;
+      parseExportSection(byteStream, byteIndex, moduleInfo);
       break;
     }
     case WASMSectionType::TYPE: {
@@ -446,7 +471,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         }
         case StackType::LOCAL: {
           // to do if local var in stack.
-          std::cout << "function end and move register and print" << std::endl;
           assembler.MOVRegister(TReg::R0, moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
           auto vec = assembler.getInstructions();
           for (auto &byte : vec) {
@@ -485,19 +509,12 @@ void compileOpCode(ModuleInfo &moduleInfo) {
     parseFuncLocalVars(singlefunctionLocalVars, moduleInfo.functionInfos[i]);
     funcParmLocals.insert(funcParmLocals.end(), moduleInfo.functionsLocalVars[i].begin(), moduleInfo.functionsLocalVars[i].end());
     moduleInfo.functionsLocalVars[i] = std::move(funcParmLocals);
-    std::cout << "gkb print local var size" << moduleInfo.functionsLocalVars[i].size() << std::endl;
 
-    auto instructions = parseOpCode(moduleInfo.functionsInstructions[i], 0, i, moduleInfo);
+    auto funcMachineCodes = parseOpCode(moduleInfo.functionsInstructions[i], 0, i, moduleInfo);
 
-    uint32_t (*func)() = nullptr;
-    func =
-        reinterpret_cast<uint32_t (*)()>(mmap(nullptr, instructions.size(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-    memcpy(reinterpret_cast<void *>(func), instructions.data(), instructions.size());
-    __builtin___clear_cache(reinterpret_cast<char *>(func), reinterpret_cast<char *>(func) + instructions.size());
-    auto functionResult = func();
-
-    std::cout << "function result is" << functionResult << std::endl;
-
-    munmap(reinterpret_cast<void *>(func), instructions.size() * 4);
+    if (funcMachineCodes.empty()) {
+      throw std::runtime_error("instructions is empty");
+    }
+    moduleInfo.machineCodes.emplace_back(funcMachineCodes);
   }
 }
