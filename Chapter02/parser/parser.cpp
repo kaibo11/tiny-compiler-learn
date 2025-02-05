@@ -116,6 +116,7 @@ void parseExportSection(const std::vector<uint8_t> &byteStream, size_t &index, M
   static_cast<void>(sectionSize);
   uint32_t exportNums = readULEB128(byteStream, index);
   while (exportNums-- > 0) {
+    size_t fieldNameSize = readULEB128(byteStream, index);
     std::string fieldName;
     char c;
     while (true) {
@@ -124,7 +125,6 @@ void parseExportSection(const std::vector<uint8_t> &byteStream, size_t &index, M
         const size_t funcIndex = byteStream[index++];
         moduleInfo.functionsIndexName.emplace(std::make_pair(funcIndex, fieldName));
         moduleInfo.functionsNameIndex.emplace(std::make_pair(fieldName, funcIndex));
-        std::cout << "get export name: " << fieldName << ", funcIndex: " << funcIndex << std::endl;
         break;
       }
       fieldName.push_back(c);
@@ -273,7 +273,7 @@ ModuleInfo processWasmFile(const char *filePath) {
     }
   }
 
-  std::cout << "wasm file :" << filePath << " parse end." << std::endl;
+  std::cout << "wasm file :" << filePath << " parse end. got ModuleInfo." << std::endl;
 
   return moduleInfo;
 }
@@ -367,26 +367,26 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
   Stack stack;
   AArch64_Assembler assembler(moduleInfo);
 
-  for (size_t i = index; i < functionInstructionsCode.size();) {
-    // to do init all local variables
-    size_t const everInitlocalVariableIndex = moduleInfo.functionInfos[funcIndex].numParams;
-    for (size_t j = everInitlocalVariableIndex; j < moduleInfo.functionsLocalVars[funcIndex].size(); ++j) {
-      auto reg = moduleInfo.functionsLocalVars[funcIndex][j].reg;
-      switch (moduleInfo.functionsLocalVars[funcIndex][j].wasmType) {
-      case WasmType::I32: {
-        assembler.MOVimm(false, reg, 0);
-        break;
-      }
-      case WasmType::I64: {
-        assembler.MOVimm(true, reg, 0);
-        break;
-      }
-      default: {
-        throw std::runtime_error("Unsupport wasm type currently.");
-      }
-      }
+  // to do init all local variables
+  size_t const everInitlocalVariableIndex = moduleInfo.functionInfos[funcIndex].numParams;
+  for (size_t j = everInitlocalVariableIndex; j < moduleInfo.functionsLocalVars[funcIndex].size(); ++j) {
+    auto reg = moduleInfo.functionsLocalVars[funcIndex][j].reg;
+    switch (moduleInfo.functionsLocalVars[funcIndex][j].wasmType) {
+    case WasmType::I32: {
+      assembler.MOVimm(false, reg, 0);
+      break;
     }
+    case WasmType::I64: {
+      assembler.MOVimm(true, reg, 0);
+      break;
+    }
+    default: {
+      throw std::runtime_error("Unsupport wasm type currently.");
+    }
+    }
+  }
 
+  for (size_t i = index; i < functionInstructionsCode.size();) {
     switch (static_cast<OPCode>(functionInstructionsCode[i])) {
     case OPCode::I32_CONST: {
       i++;
@@ -395,7 +395,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       stackElement.type = StackType::CONSTANT_I32;
       stackElement.data.constUnion.u32 = i32ConstValue;
       stack.push(stackElement);
-      std::cout << "i32ConstValue push to stack" << i32ConstValue << std::endl;
       break;
     }
     case OPCode::I64_CONST: {
@@ -405,7 +404,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       stackElement.type = StackType::CONSTANT_I64;
       stackElement.data.constUnion.u64 = i64ConstValue;
       stack.push(stackElement);
-      std::cout << "i64ConstValue push to stack" << i64ConstValue << std::endl;
       break;
     }
     case OPCode::LOCAL_GET: {
@@ -418,11 +416,9 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       stackElement.variableData.location.localIdx = localIndex;
       stackElement.variableData.location.reg = moduleInfo.functionsLocalVars[funcIndex][localIndex].reg;
       stack.push(stackElement);
-      std::cout << "LOCAL_GET push to stack" << localIndex << std::endl;
       break;
     }
     case OPCode::LOCAL_SET: { // pop stack and set value
-      std::cout << "LOCAL_SET start to handle" << std::endl;
       i++;
       uint32_t localIndex = readULEB128(functionInstructionsCode, i);
       if (stack.empty()) {
@@ -448,11 +444,42 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         break;
       }
       default: {
-        std::cout << "error: unknown op code" << std::endl;
+        throw std::runtime_error("Error: unknown op code");
+      }
+      }
+      stack.pop();
+      break;
+    }
+    case OPCode::LOCAL_TEE: {
+      i++;
+      uint32_t localIndex = readULEB128(functionInstructionsCode, i);
+      if (stack.empty()) {
+        std::cout << "error: stack is empty, parse LOCAL_SET error" << std::endl;
         exit(1);
+      }
+      const StackElement &stackElement = stack.top();
+      switch (static_cast<uint32_t>(stackElement.type)) {
+      case StackType::CONSTANT_I32: {
+        auto const constValue = stackElement.data.constUnion.u32;
+        assembler.MOVimm(false, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg, constValue);
         break;
       }
+      case StackType::CONSTANT_I64: {
+        auto const constValue = stackElement.data.constUnion.u64;
+        assembler.MOVimm(true, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg, constValue);
+        break;
       }
+      case StackType::LOCAL: {
+        // to do if local var in stack.
+        assembler.MOVRegister(moduleInfo.functionsLocalVars[funcIndex][localIndex].reg,
+                              moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
+        break;
+      }
+      default: {
+        throw std::runtime_error("Error: unknown op code");
+      }
+      }
+      break;
     }
     case OPCode::END: {
       i++;
@@ -473,9 +500,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
           // to do if local var in stack.
           assembler.MOVRegister(TReg::R0, moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
           auto vec = assembler.getInstructions();
-          for (auto &byte : vec) {
-            std::cout << std::hex << static_cast<int>(byte) << " " << std::endl;
-          }
           break;
         }
         default: {
@@ -484,13 +508,16 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
           break;
         }
         }
+        stack.pop();
       }
       assembler.Ret();
       break;
     }
     default: {
-      std::cout << "error: unknown op code is " << static_cast<uint32_t>(functionInstructionsCode[i]) << std::endl;
-      throw std::runtime_error("unknown OPCode.");
+      std::stringstream ss;
+      ss << "error: unknown op code is " << static_cast<uint32_t>(functionInstructionsCode[i]);
+      std::string errorMessage = ss.str();
+      throw std::runtime_error(errorMessage);
       break;
     }
     }
@@ -499,7 +526,7 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
 }
 
 void compileOpCode(ModuleInfo &moduleInfo) {
-  std::cout << "compile opCode start." << std::endl;
+  std::cout << "Start compile wasm module using ModuleInfo." << std::endl;
 
   for (int i = 0; i < moduleInfo.functionsInstructions.size(); i++) {
     auto &singlefunctionLocalVars = moduleInfo.functionsLocalVars[i];
@@ -513,7 +540,9 @@ void compileOpCode(ModuleInfo &moduleInfo) {
     auto funcMachineCodes = parseOpCode(moduleInfo.functionsInstructions[i], 0, i, moduleInfo);
 
     if (funcMachineCodes.empty()) {
-      throw std::runtime_error("instructions is empty");
+      std::stringstream ss;
+      ss << "Parse wasm func opCode error , got empty arm64 instructions. wasm func index is: " << i;
+      throw std::runtime_error(ss.str());
     }
     moduleInfo.machineCodes.emplace_back(funcMachineCodes);
   }

@@ -22,7 +22,7 @@ TEST(JsonTest, ParseJson) {
   std::cout << "Source filename: " << j["source_filename"].get<std::string>() << std::endl;
 
   const auto &commands = j["commands"];
-  std::string wasmFilePath = "../";
+  std::string wasmFilePathPrefix = "../";
 
   ModuleInfo moduleInfo;
 
@@ -33,7 +33,7 @@ TEST(JsonTest, ParseJson) {
     if (command.contains("filename")) {
       auto commandFilename = command["filename"].get<std::string>();
       std::cout << "Filename: " << command["filename"].get<std::string>() << std::endl;
-      wasmFilePath = wasmFilePath + commandFilename;
+      std::string wasmFilePath = wasmFilePathPrefix + commandFilename;
       moduleInfo = processWasmFile(wasmFilePath.data());
       compileOpCode(moduleInfo);
       continue;
@@ -53,9 +53,7 @@ TEST(JsonTest, ParseJson) {
         TReg reg = TReg::R0;
 
         for (const auto &arg : args) {
-          std::cout << "gkb start reg value: " << static_cast<uint32_t>(reg) << std::endl;
           assembler.MOVimm(false, reg, std::stoull(arg["value"].get<std::string>()));
-          std::cout << "gkb end reg value: " << static_cast<uint32_t>(reg) << std::endl;
           reg = static_cast<TReg>(static_cast<uint8_t>(reg) + 1);
           std::cout << "Arg type: " << arg["type"].get<std::string>() << ", value: " << arg["value"].get<std::string>() << std::endl;
         }
@@ -68,10 +66,16 @@ TEST(JsonTest, ParseJson) {
     assembler.Ret();
 
     std::vector<uint8_t> testInstr = assembler.getInstructions();
-    size_t needTestedFuncIndex = moduleInfo.functionsNameIndex[funcName];
-    auto testFuncInstr = moduleInfo.machineCodes[needTestedFuncIndex];
+    auto needTestedFuncIndex = moduleInfo.functionsNameIndex.find(funcName);
+
+    if (needTestedFuncIndex == moduleInfo.functionsNameIndex.end()) {
+      std::cout << "func name:" << funcName << " is not found in moduleInfo" << std::endl;
+      exit(1);
+    }
+
+    auto testFuncInstr = moduleInfo.machineCodes[needTestedFuncIndex->second];
     testInstr.insert(testInstr.end(), testFuncInstr.begin(), testFuncInstr.end());
-    std::cout << "[";
+    std::cout << "test instr is :[";
     for (size_t i = 0; i < testInstr.size(); ++i) {
       std::cout << "0x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(testInstr[i]);
       if (i < testInstr.size() - 1) {

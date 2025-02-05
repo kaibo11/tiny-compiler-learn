@@ -1,12 +1,9 @@
-#include <iostream>
-
 #include "aarch64_assembler.hpp"
 
 AArch64_Assembler::AArch64_Assembler(ModuleInfo &moduleInfo) : moduleInfo_(moduleInfo) {
 }
 
 void AArch64_Assembler::insertInstructionIntoVector(uint32_t instruction, std::vector<uint8_t> &vec) {
-  std::cout << "gkb insert instruction: " << instruction << std::endl;
   vec.push_back(static_cast<uint8_t>(instruction & 0xFFU));
   vec.push_back(static_cast<uint8_t>((instruction >> 8U) & 0xFFU));
   vec.push_back(static_cast<uint8_t>((instruction >> 16U) & 0xFFU));
