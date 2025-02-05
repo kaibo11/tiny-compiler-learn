@@ -1,7 +1,7 @@
 name: 
  
 on:
-  pull_request:
+  push:
     paths:
         - 'Chapter02/**'
  
