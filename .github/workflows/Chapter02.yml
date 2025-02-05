@@ -4,6 +4,7 @@ on:
   push:
     paths:
         - 'Chapter02/**'
+  workflow_dispatch: 
  
 jobs:
   Chapter01:

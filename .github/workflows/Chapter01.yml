@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
         - 'Chapter01/**'
+  workflow_dispatch: 
  
 jobs:
   Chapter01:
