@@ -513,37 +513,53 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       assembler.Ret();
       break;
     }
+    case OPCode::I32_ADD: {
+      i++;
+      if (stack.size() < 2) {
+        std::cout << "error: stack size less than 2, parse I32_ADD error" << std::endl;
+        exit(1);
+      }
+      StackElement &lhs = stack[stack.size() - 2];
+      StackElement &rhs = stack[stack.size() - 1];
+      switch (static_cast<uint32_t>(stackElement.type)) {
+      case StackType::CONSTANT_I32:
+        auto const constValue = stackElement.data.constUnion.u32;
+        assembler.MOVimm(false, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg, constValue);
+        switch (static_cast<uint32_t>(lhs.type)) {
+      case StackType::CONSTANT_I
+
+    }
     default: {
-      std::stringstream ss;
-      ss << "error: unknown op code is " << static_cast<uint32_t>(functionInstructionsCode[i]);
-      std::string errorMessage = ss.str();
-      throw std::runtime_error(errorMessage);
-      break;
+        std::stringstream ss;
+        ss << "error: unknown op code is " << static_cast<uint32_t>(functionInstructionsCode[i]);
+        std::string errorMessage = ss.str();
+        throw std::runtime_error(errorMessage);
+        break;
+      }
+      }
+      }
+      return assembler.getInstructions();
     }
-    }
-  }
-  return assembler.getInstructions();
-}
 
-void compileOpCode(ModuleInfo &moduleInfo) {
-  std::cout << "Start compile wasm module using ModuleInfo." << std::endl;
+      void compileOpCode(ModuleInfo & moduleInfo) {
+        std::cout << "Start compile wasm module using ModuleInfo." << std::endl;
 
-  for (int i = 0; i < moduleInfo.functionsInstructions.size(); i++) {
-    auto &singlefunctionLocalVars = moduleInfo.functionsLocalVars[i];
-    std::string &functionSignatureType = moduleInfo.signatureTypes[moduleInfo.functionInfos[i].typeIndex];
+        for (int i = 0; i < moduleInfo.functionsInstructions.size(); i++) {
+          auto &singlefunctionLocalVars = moduleInfo.functionsLocalVars[i];
+          std::string &functionSignatureType = moduleInfo.signatureTypes[moduleInfo.functionInfos[i].typeIndex];
 
-    std::vector<ModuleInfo::LocalVar> funcParmLocals = parseFuncSignature(functionSignatureType, moduleInfo.functionInfos[i]);
-    parseFuncLocalVars(singlefunctionLocalVars, moduleInfo.functionInfos[i]);
-    funcParmLocals.insert(funcParmLocals.end(), moduleInfo.functionsLocalVars[i].begin(), moduleInfo.functionsLocalVars[i].end());
-    moduleInfo.functionsLocalVars[i] = std::move(funcParmLocals);
+          std::vector<ModuleInfo::LocalVar> funcParmLocals = parseFuncSignature(functionSignatureType, moduleInfo.functionInfos[i]);
+          parseFuncLocalVars(singlefunctionLocalVars, moduleInfo.functionInfos[i]);
+          funcParmLocals.insert(funcParmLocals.end(), moduleInfo.functionsLocalVars[i].begin(), moduleInfo.functionsLocalVars[i].end());
+          moduleInfo.functionsLocalVars[i] = std::move(funcParmLocals);
 
-    auto funcMachineCodes = parseOpCode(moduleInfo.functionsInstructions[i], 0, i, moduleInfo);
+          auto funcMachineCodes = parseOpCode(moduleInfo.functionsInstructions[i], 0, i, moduleInfo);
 
-    if (funcMachineCodes.empty()) {
-      std::stringstream ss;
-      ss << "Parse wasm func opCode error , got empty arm64 instructions. wasm func index is: " << i;
-      throw std::runtime_error(ss.str());
-    }
-    moduleInfo.machineCodes.emplace_back(funcMachineCodes);
-  }
-}
+          if (funcMachineCodes.empty()) {
+            std::stringstream ss;
+            ss << "Parse wasm func opCode error , got empty arm64 instructions. wasm func index is: " << i;
+            throw std::runtime_error(ss.str());
+          }
+          moduleInfo.machineCodes.emplace_back(funcMachineCodes);
+        }
+      }

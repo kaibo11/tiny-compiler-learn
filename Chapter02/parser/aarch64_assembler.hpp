@@ -18,6 +18,12 @@ public:
     MOVimm(true, reg, imm);
   }
 
+  void AddShiftedRegister(TReg const first, TReg const second);
+
+  void SubShiftedRegister(TReg const first, TReg const second);
+
+  void Multiply(TReg const first, TReg const second);
+
   // stp  x29, x30, [sp, -16]!
   void stpSpecial1();
 

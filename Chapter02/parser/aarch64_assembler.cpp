@@ -46,6 +46,54 @@ void AArch64_Assembler::MOVRegister(TReg const dst, TReg const src) {
   insertInstructionIntoVector(instruction, this->instructions_);
 }
 
+void AArch64_Assembler::AddShiftedRegister(TReg const first, TReg const second) {
+  uint32_t instruction = 0x8B000000U;
+
+  uint8_t shift = 0; // to do implement
+  static_cast<void>(shift);
+  auto Rn = first;
+  auto Rm = second;
+  auto Rd = first;
+
+  instruction |= static_cast<uint8_t>(Rd);
+  instruction |= static_cast<uint16_t>(static_cast<uint16_t>(Rn) << 5U);
+  instruction |= (static_cast<uint32_t>(Rm) << 16U);
+
+  insertInstructionIntoVector(instruction, this->instructions_);
+}
+
+void AArch64_Assembler::SubShiftedRegister(TReg const first, TReg const second) {
+  uint32_t instruction = 0x8B000000U;
+
+  uint8_t shift = 0; // to do implement
+  static_cast<void>(shift);
+  auto Rn = first;
+  auto Rm = second;
+  auto Rd = first;
+
+  instruction |= static_cast<uint8_t>(Rd);
+  instruction |= static_cast<uint16_t>(static_cast<uint16_t>(Rn) << 5U);
+  instruction |= (static_cast<uint32_t>(Rm) << 16U);
+
+  insertInstructionIntoVector(instruction, this->instructions_);
+}
+
+void AArch64_Assembler::Multiply(TReg const first, TReg const second) {
+  uint32_t instruction = 0x9B007C00U;
+
+  uint8_t shift = 0; // to do implement
+  static_cast<void>(shift);
+  auto Rn = first;
+  auto Rm = second;
+  auto Rd = first;
+
+  instruction |= static_cast<uint8_t>(Rd);
+  instruction |= static_cast<uint16_t>(static_cast<uint16_t>(Rn) << 5U);
+  instruction |= (static_cast<uint32_t>(Rm) << 16U);
+
+  insertInstructionIntoVector(instruction, this->instructions_);
+}
+
 void AArch64_Assembler::stpSpecial1() {
   uint32_t instruction = 0xA9BF7BFD;
   insertInstructionIntoVector(instruction, this->instructions_);
