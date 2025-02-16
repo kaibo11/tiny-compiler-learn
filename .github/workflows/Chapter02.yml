@@ -7,7 +7,7 @@ on:
   workflow_dispatch: 
  
 jobs:
-  Chapter01:
+  Chapter02:
     runs-on: ubuntu-latest
     steps:
       - name: install build essentials
