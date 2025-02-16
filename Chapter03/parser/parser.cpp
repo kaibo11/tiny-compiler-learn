@@ -439,7 +439,8 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       }
       case StackType::LOCAL: {
         // to do if local var in stack.
-        assembler.MOVRegister(moduleInfo.functionsLocalVars[funcIndex][localIndex].reg,
+        bool is64 = moduleInfo.functionsLocalVars[funcIndex][localIndex].wasmType == WasmType::I64;
+        assembler.MOVRegister(is64, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg,
                               moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
         break;
       }
@@ -471,7 +472,8 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       }
       case StackType::LOCAL: {
         // to do if local var in stack.
-        assembler.MOVRegister(moduleInfo.functionsLocalVars[funcIndex][localIndex].reg,
+        bool is64 = moduleInfo.functionsLocalVars[funcIndex][localIndex].wasmType == WasmType::I64;
+        assembler.MOVRegister(is64, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg,
                               moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
         break;
       }
@@ -498,7 +500,8 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         }
         case StackType::LOCAL: {
           // to do if local var in stack.
-          assembler.MOVRegister(TReg::R0, moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
+          bool is64 = moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].wasmType == WasmType::I64;
+          assembler.MOVRegister(is64, TReg::R0, moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
           auto vec = assembler.getInstructions();
           break;
         }
@@ -529,7 +532,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       auto returnType = moduleInfo.getReturnTypeForSignature(moduleInfo.functionInfos[funcIndex].typeIndex);
 
       if (returnType == WasmType::I32) {
-        std::cout << "GKB i32 add" << std::endl;
         assembler.AddShiftedRegister(false, moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
                                      moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg);
       } else {
@@ -673,13 +675,13 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         if (rightLocalVarType == WasmType::I32) {
           assembler.Sxtw(moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg,
                          moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg);
-        } else {
+        } else if (rightLocalVarType != WasmType::I64) {
           throw std::runtime_error("error: I64_ADD right type is not I32 or I64, parse I64_ADD wasm opCode error.");
         }
         if (leftLocalVarType == WasmType::I32) {
           assembler.Sxtw(moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
                          moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg);
-        } else {
+        } else if (rightLocalVarType != WasmType::I64) {
           throw std::runtime_error("error: I64_ADD left type is not I32 or I64, parse I64_ADD wasm opCode error.");
         }
         assembler.AddShiftedRegister(true, moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
@@ -718,13 +720,13 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         if (rightLocalVarType == WasmType::I32) {
           assembler.Sxtw(moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg,
                          moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg);
-        } else {
+        } else if (rightLocalVarType != WasmType::I64) {
           throw std::runtime_error("error: I64_SUB right type is not I32 or I64, parse I64_SUB wasm opCode error.");
         }
         if (leftLocalVarType == WasmType::I32) {
           assembler.Sxtw(moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
                          moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg);
-        } else {
+        } else if (rightLocalVarType != WasmType::I64) {
           throw std::runtime_error("error: I64_SUB left type is not I32 or I64, parse I64_SUB wasm opCode error.");
         }
         assembler.SubShiftedRegister(true, moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
@@ -763,13 +765,13 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         if (rightLocalVarType == WasmType::I32) {
           assembler.Sxtw(moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg,
                          moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg);
-        } else {
+        } else if (rightLocalVarType != WasmType::I64) {
           throw std::runtime_error("error: I64_MUL right type is not I32 or I64, parse I64_MUL wasm opCode error.");
         }
         if (leftLocalVarType == WasmType::I32) {
           assembler.Sxtw(moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
                          moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg);
-        } else {
+        } else if (rightLocalVarType != WasmType::I64) {
           throw std::runtime_error("error: I64_MUL left type is not I32 or I64, parse I64_MUL wasm opCode error.");
         }
         assembler.Multiply(true, moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,

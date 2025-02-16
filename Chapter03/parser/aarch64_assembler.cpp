@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "aarch64_assembler.hpp"
 
 AArch64_Assembler::AArch64_Assembler(ModuleInfo &moduleInfo) : moduleInfo_(moduleInfo) {
@@ -11,29 +13,48 @@ void AArch64_Assembler::insertInstructionIntoVector(uint32_t instruction, std::v
 }
 void AArch64_Assembler::MOVimm(bool const is64, TReg const reg, uint64_t const imm) {
   // assert(RegUtil::isGPR(reg) && "Only GPR registers allowed");
-  uint32_t instruction = 0;
-  if (!is64) {
-    instruction = 0x52800000; // MOVZ Wd, #imm16
-  } else {
-    instruction = 0xD2800000; // MOVZ Xd, #imm16
+  // uint32_t instruction = 0;
+  // if (!is64) {
+  //   instruction = 0x52800000; // MOVZ Wd, #imm16
+  // } else {
+  //   instruction = 0xD2800000; // MOVZ Xd, #imm16
+  // }
+
+  MOVK(is64, reg, static_cast<uint16_t>(imm & 0xFFFFU), 0);          // 第 0-15 位
+  MOVK(is64, reg, static_cast<uint16_t>((imm >> 16U) & 0xFFFFU), 1); // 第 16-31 位
+  if (is64) {
+    MOVK(is64, reg, static_cast<uint16_t>((imm >> 32U) & 0xFFFFU), 2); // 第 32-47 位
+    MOVK(is64, reg, static_cast<uint16_t>((imm >> 48U) & 0xFFFFU), 3); // 第 48-63 位
   }
 
-  uint8_t hw = 0;                              // to do implement
-  uint32_t imm16 = static_cast<uint32_t>(imm); // to do implement
+  // instruction |= (imm16 << 5U);
+  // instruction |= static_cast<uint8_t>(reg);
 
-  static_cast<void>(hw);
+  // insertInstructionIntoVector(instruction, this->instructions_);
+}
 
-  instruction |= (imm16 << 5U);
+// hw = shift , 0 = 0 , 1 = 16 , 2 = 32 , 3 = 48
+void AArch64_Assembler::MOVK(bool const is64, TReg const reg, uint16_t const imm16, uint8_t const hw) {
+  uint32_t instruction = 0;
+  if (!is64) {
+    instruction = 0x72800000U;
+  } else {
+    instruction = 0xF2800000U;
+  }
+  instruction |= (static_cast<uint32_t>(hw) << 21U);
+  instruction |= (static_cast<uint32_t>(imm16) << 5U);
   instruction |= static_cast<uint8_t>(reg);
-
   insertInstructionIntoVector(instruction, this->instructions_);
 }
 
-void AArch64_Assembler::MOVRegister(TReg const dst, TReg const src) {
-  uint32_t instruction = 0x2A000000U;
+void AArch64_Assembler::MOVRegister(bool is64, TReg const dst, TReg const src) {
+  uint32_t instruction;
+  if (is64) {
+    instruction = 0xAA000000U;
+  } else {
+    instruction = 0x2A000000U;
+  }
 
-  uint8_t shift = 0; // to do implement
-  static_cast<void>(shift);
   auto Rm = src;
   auto Rd = dst;
   uint8_t Rn = 0x1F; // 11111

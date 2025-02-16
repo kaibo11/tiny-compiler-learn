@@ -14,7 +14,9 @@ public:
     MOVimm(false, reg, static_cast<uint64_t>(imm));
   }
 
-  inline void MOVimm64(TReg const reg, uint64_t const imm) {
+  void MOVK(bool const is64, TReg const reg, uint16_t const imm16, uint8_t const hw);
+
+  inline void MOVimm64(bool const is64, TReg const reg, uint64_t const imm) {
     MOVimm(true, reg, imm);
   }
 
@@ -39,7 +41,7 @@ public:
   void blSpecial1();
 
   // only support mov register to register
-  void MOVRegister(TReg const dst, TReg const src);
+  void MOVRegister(bool is64, TReg const dst, TReg const src);
 
   void Ret();
 

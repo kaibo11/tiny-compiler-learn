@@ -6,6 +6,7 @@
 #include "parser/aarch64_assembler.hpp"
 #include "parser/aarch64_common.hpp"
 #include "parser/parser.hpp"
+#include "parser/util.hpp"
 
 using json = nlohmann::json;
 
@@ -53,8 +54,10 @@ TEST(JsonTest, ParseJson) {
         TReg reg = TReg::R0;
 
         for (const auto &arg : args) {
-          std::cout << "gkb printf arg is " << std::stoull(arg["value"].get<std::string>()) << std::endl;
-          assembler.MOVimm(false, reg, std::stoull(arg["value"].get<std::string>()));
+          // std::cout << "gkb printf arg is " << convertStringToUint64(arg["value"].get<std::string>()) << std::endl;
+          auto value = convertStringToUint64(arg["value"].get<std::string>());
+          bool is64 = value > 0xffffffff;
+          assembler.MOVimm(is64, reg, convertStringToUint64(arg["value"].get<std::string>()));
           reg = static_cast<TReg>(static_cast<uint8_t>(reg) + 1);
           std::cout << "Arg type: " << arg["type"].get<std::string>() << ", value: " << arg["value"].get<std::string>() << std::endl;
         }
@@ -85,18 +88,30 @@ TEST(JsonTest, ParseJson) {
     }
     std::cout << "]" << std::endl;
     if (command.contains("expected")) {
-      uint32_t (*func)() = nullptr;
       const auto &expected = command["expected"];
       for (const auto &exp : expected) {
         std::cout << "Expected type: " << exp["type"].get<std::string>() << ", value: " << exp["value"].get<std::string>() << std::endl;
-        func =
-            reinterpret_cast<uint32_t (*)()>(mmap(nullptr, testInstr.size(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-        memcpy(reinterpret_cast<void *>(func), testInstr.data(), testInstr.size());
-        __builtin___clear_cache(reinterpret_cast<char *>(func), reinterpret_cast<char *>(func) + testInstr.size());
-        uint32_t result = func();
-        ASSERT_EQ(result, std::stoull(exp["value"].get<std::string>()));
+        if (exp["type"].get<std::string>() == "i32") {
+          uint32_t (*func)() = nullptr;
+          func = reinterpret_cast<uint32_t (*)()>(
+              mmap(nullptr, testInstr.size(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+          memcpy(reinterpret_cast<void *>(func), testInstr.data(), testInstr.size());
+          __builtin___clear_cache(reinterpret_cast<char *>(func), reinterpret_cast<char *>(func) + testInstr.size());
+          auto result = func();
+          ASSERT_EQ(result, convertStringToUint64(exp["value"].get<std::string>()));
 
-        munmap(reinterpret_cast<void *>(func), testInstr.size());
+          munmap(reinterpret_cast<void *>(func), testInstr.size());
+        } else {
+          uint64_t (*func)() = nullptr;
+          func = reinterpret_cast<uint64_t (*)()>(
+              mmap(nullptr, testInstr.size(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+          memcpy(reinterpret_cast<void *>(func), testInstr.data(), testInstr.size());
+          __builtin___clear_cache(reinterpret_cast<char *>(func), reinterpret_cast<char *>(func) + testInstr.size());
+          auto result = func();
+          ASSERT_EQ(result, convertStringToUint64(exp["value"].get<std::string>()));
+
+          munmap(reinterpret_cast<void *>(func), testInstr.size());
+        }
       }
     } else {
       void (*func)() = nullptr;

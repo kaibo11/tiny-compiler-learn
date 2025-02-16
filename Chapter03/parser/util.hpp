@@ -1,7 +1,7 @@
-#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <string>
 
 // Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
@@ -22,6 +22,8 @@ template <class Dest, class Source> constexpr Dest bit_cast(Source const &source
   static_cast<void>(std::memcpy(&dest, &source, static_cast<size_t>(sizeof(dest))));
   return dest;
 }
+
+uint64_t convertStringToUint64(const std::string& str);
 
 union ConstUnion {
   uint32_t u32; ///< 32-bit integer
