@@ -789,6 +789,106 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
     }
     case OPCode::I64_DIV_S: {
       i++;
+      if (stack.size() < 2) {
+        throw std::runtime_error("error: stack size less than 2, parse I64_DIV_S wasm opCode error.");
+      }
+      StackElement right = stack.top();
+      stack.pop();
+      StackElement left = stack.top();
+      stack.pop();
+      if (static_cast<uint32_t>(left.type) != StackType::LOCAL || static_cast<uint32_t>(right.type) != StackType::LOCAL) {
+        throw std::runtime_error("error: stack element type is not LOCAL, parse I64_DIV_S wasm opCode error.");
+      }
+      auto returnType = moduleInfo.getReturnTypeForSignature(moduleInfo.functionInfos[funcIndex].typeIndex);
+
+      assembler.SDIV(true, moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
+                     moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg);
+
+      StackElement stackElement;
+      stackElement.type = StackType::LOCAL;
+
+      StackElement::VariableData data;
+      stackElement.variableData.location.localIdx = left.variableData.location.localIdx;
+      stackElement.variableData.location.reg = moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg;
+      stack.push(stackElement);
+      break;
+    }
+    case OPCode::I64_DIV_U: {
+      i++;
+      if (stack.size() < 2) {
+        throw std::runtime_error("error: stack size less than 2, parse I64_DIV_U wasm opCode error.");
+      }
+      StackElement right = stack.top();
+      stack.pop();
+      StackElement left = stack.top();
+      stack.pop();
+      if (static_cast<uint32_t>(left.type) != StackType::LOCAL || static_cast<uint32_t>(right.type) != StackType::LOCAL) {
+        throw std::runtime_error("error: stack element type is not LOCAL, parse I64_DIV_U wasm opCode error.");
+      }
+      auto returnType = moduleInfo.getReturnTypeForSignature(moduleInfo.functionInfos[funcIndex].typeIndex);
+
+      assembler.UDIV(true, moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
+                     moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg);
+
+      StackElement stackElement;
+      stackElement.type = StackType::LOCAL;
+
+      StackElement::VariableData data;
+      stackElement.variableData.location.localIdx = left.variableData.location.localIdx;
+      stackElement.variableData.location.reg = moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg;
+      stack.push(stackElement);
+      break;
+    }
+    case OPCode::I32_DIV_S: {
+      i++;
+      if (stack.size() < 2) {
+        throw std::runtime_error("error: stack size less than 2, parse I32_DIV_S wasm opCode error.");
+      }
+      StackElement right = stack.top();
+      stack.pop();
+      StackElement left = stack.top();
+      stack.pop();
+      if (static_cast<uint32_t>(left.type) != StackType::LOCAL || static_cast<uint32_t>(right.type) != StackType::LOCAL) {
+        throw std::runtime_error("error: stack element type is not LOCAL, parse I32_DIV_S wasm opCode error.");
+      }
+      auto returnType = moduleInfo.getReturnTypeForSignature(moduleInfo.functionInfos[funcIndex].typeIndex);
+
+      assembler.SDIV(false, moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
+                     moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg);
+
+      StackElement stackElement;
+      stackElement.type = StackType::LOCAL;
+
+      StackElement::VariableData data;
+      stackElement.variableData.location.localIdx = left.variableData.location.localIdx;
+      stackElement.variableData.location.reg = moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg;
+      stack.push(stackElement);
+      break;
+    }
+    case OPCode::I32_DIV_U: {
+      i++;
+      if (stack.size() < 2) {
+        throw std::runtime_error("error: stack size less than 2, parse I32_DIV_U wasm opCode error.");
+      }
+      StackElement right = stack.top();
+      stack.pop();
+      StackElement left = stack.top();
+      stack.pop();
+      if (static_cast<uint32_t>(left.type) != StackType::LOCAL || static_cast<uint32_t>(right.type) != StackType::LOCAL) {
+        throw std::runtime_error("error: stack element type is not LOCAL, parse I32_DIV_U wasm opCode error.");
+      }
+      auto returnType = moduleInfo.getReturnTypeForSignature(moduleInfo.functionInfos[funcIndex].typeIndex);
+
+      assembler.UDIV(false, moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
+                     moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg);
+
+      StackElement stackElement;
+      stackElement.type = StackType::LOCAL;
+
+      StackElement::VariableData data;
+      stackElement.variableData.location.localIdx = left.variableData.location.localIdx;
+      stackElement.variableData.location.reg = moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg;
+      stack.push(stackElement);
       break;
     }
     default: {

@@ -11,21 +11,23 @@
 
 using json = nlohmann::json;
 
-int trapCode = -1;
+int globalTrapCode = -1;
 static jmp_buf env;
 // NOLINT(cert-err52-cpp)
 void trap(int trapCode) {
+  std::cout << "wasm Trap success! get trapCode : " << trapCode << std::endl;
+  globalTrapCode = trapCode;
   longjmp(env, trapCode);
-  trapCode = trapCode;
-  std::cout << "wasm Trap success!" << std::endl;
 }
 
 int getTrapCode() {
-  return trapCode;
+  auto ret = globalTrapCode;
+  globalTrapCode = -1;
+  return ret;
 }
 
 TEST(JsonTest, ParseJson) {
-  std::ifstream ifs("../arithmetic.json");
+  std::ifstream ifs("../div.json");
   if (!ifs.is_open()) {
     std::cerr << "Could not open the file!" << std::endl;
     return;
@@ -68,7 +70,6 @@ TEST(JsonTest, ParseJson) {
         TReg reg = TReg::R0;
 
         for (const auto &arg : args) {
-          // std::cout << "gkb printf arg is " << convertStringToUint64(arg["value"].get<std::string>()) << std::endl;
           auto value = convertStringToUint64(arg["value"].get<std::string>());
           bool is64 = value > 0xffffffff;
           assembler.MOVimm(is64, reg, convertStringToUint64(arg["value"].get<std::string>()));
@@ -76,6 +77,9 @@ TEST(JsonTest, ParseJson) {
           std::cout << "Arg type: " << arg["type"].get<std::string>() << ", value: " << arg["value"].get<std::string>() << std::endl;
         }
       }
+      void (*funcPtr)(int) = trap;
+      uint64_t trapAddress = (uint64_t)(uintptr_t)funcPtr;
+      assembler.MOVimm(true, TReg::R28, trapAddress);
 
       assembler.blSpecial1();
     }
@@ -104,16 +108,30 @@ TEST(JsonTest, ParseJson) {
     if (command.contains("expected")) {
       const auto &expected = command["expected"];
       for (const auto &exp : expected) {
-        std::cout << "Expected type: " << exp["type"].get<std::string>() << ", value: " << exp["value"].get<std::string>() << std::endl;
+        std::cout << "Expected type: " << exp["type"].get<std::string>() << std::endl;
+        if (exp.contains("value")) {
+          std::cout << ", value: " << exp["value"].get<std::string>() << std::endl;
+        }
         if (exp["type"].get<std::string>() == "i32") {
           uint32_t (*func)() = nullptr;
           func = reinterpret_cast<uint32_t (*)()>(
               mmap(nullptr, testInstr.size(), PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
           memcpy(reinterpret_cast<void *>(func), testInstr.data(), testInstr.size());
           __builtin___clear_cache(reinterpret_cast<char *>(func), reinterpret_cast<char *>(func) + testInstr.size());
-          auto result = func();
-          ASSERT_EQ(result, convertStringToUint64(exp["value"].get<std::string>()));
-
+          auto commandType = command["type"].get<std::string>();
+          if (commandType == "assert_trap") {
+            auto shouldTrapCode = command["text"].get<std::string>() == "integer divide by zero" ? 1 : 2;
+            // NOLINT(cert-err52-cpp)
+            if (setjmp(env) == 0) {
+              auto result = func();
+              ASSERT_EQ(result, convertStringToUint64(exp["value"].get<std::string>()));
+            } else {
+              ASSERT_EQ(getTrapCode(), shouldTrapCode);
+            }
+          } else {
+            auto result = func();
+            ASSERT_EQ(result, convertStringToUint64(exp["value"].get<std::string>()));
+          }
           munmap(reinterpret_cast<void *>(func), testInstr.size());
         } else {
           uint64_t (*func)() = nullptr;
