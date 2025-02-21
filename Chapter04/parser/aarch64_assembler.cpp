@@ -97,8 +97,8 @@ void AArch64_Assembler::BR(TReg const reg) {
 
 void AArch64_Assembler::UDIV(bool is64, TReg const first, TReg const second) {
   CMP(is64, second, 0);
-  Bcon(1, 3); // 和0 不相等就跳过下一条指令, 也就是跳到trap地址
-  MOVimm(false, TReg::R0, 1);
+  Bcon(1, is64 ? 6 : 4); // 和0 不相等就跳过下一条指令, 也就是跳到trap地址
+  MOVimm(is64, TReg::R0, 1);
   BR(TReg::R28); // trap address
   uint32_t instruction;
   if (is64) {
@@ -117,7 +117,7 @@ void AArch64_Assembler::UDIV(bool is64, TReg const first, TReg const second) {
   insertInstructionIntoVector(instruction, this->instructions_);
 }
 
-void AArch64_Assembler::CMP(bool is64, TReg const first, uint16_t imm16) {
+void AArch64_Assembler::CMP(bool is64, TReg const first, uint16_t imm12) {
   uint32_t instruction;
   if (is64) {
     instruction = 0xF100001FU;
@@ -129,7 +129,7 @@ void AArch64_Assembler::CMP(bool is64, TReg const first, uint16_t imm16) {
 
   auto Rn = first;
   instruction |= static_cast<uint16_t>(static_cast<uint16_t>(Rn) << 5U);
-  instruction |= (static_cast<uint32_t>(imm16) << 10U);
+  instruction |= (static_cast<uint32_t>(imm12) << 10U);
 
   insertInstructionIntoVector(instruction, this->instructions_);
 }
@@ -185,18 +185,17 @@ void AArch64_Assembler::SDIV(bool is64, TReg const first, TReg const second) {
   }
 
   CMP(is64, second, 0);
-  Bcon(1, 3); // 和0 不相等就跳过下一条指令,继续判断是否是first最大值 或者-1
-  MOVimm(true, TReg::R0, 1);
+  Bcon(1, is64 ? 6 : 4); // 和0 不相等就跳过下一条指令,继续判断是否是first最大值 或者-1
+  MOVimm(is64, TReg::R0, 1);
   BR(TReg::R28); // trigger trap
 
-  std::cout << "gkb SDIV  xx" << std::endl;
-
-  CMN(is64, second, 1);
-  Bcon(1, 6); // 和-1 不相等就继续执行， 否则继续判断除数
-  MOVimm(is64, TReg::R25, is64 ? 0x7000000000000000 : 0x700000010U);
-  CMP(is64, first, TReg::R25);
-  Bcon(1, 3);
-  MOVimm(true, TReg::R0, 2);
+  MOVimm(is64, TReg::R26, is64 ? 18446744073709551615U : 4294967295U);
+  CMP(is64, second, TReg::R26); // 被除数不能是-1
+  Bcon(1, is64 ? 12 : 8);       // 和-1不相等就跳过所有去执行除法， 否则继续判断除数
+  MOVimm(is64, TReg::R27, is64 ? 0x8000000000000000U : 0x80000000U);
+  CMP(is64, first, TReg::R27);
+  Bcon(1, is64 ? 6 : 4);
+  MOVimm(is64, TReg::R0, 2);
   BR(TReg::R28); // trap address
 
   auto Rn = first;

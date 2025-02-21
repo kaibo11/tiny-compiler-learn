@@ -852,7 +852,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         throw std::runtime_error("error: stack element type is not LOCAL, parse I32_DIV_S wasm opCode error.");
       }
       auto returnType = moduleInfo.getReturnTypeForSignature(moduleInfo.functionInfos[funcIndex].typeIndex);
-
       assembler.SDIV(false, moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg,
                      moduleInfo.functionsLocalVars[funcIndex][right.variableData.location.localIdx].reg);
 

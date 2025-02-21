@@ -30,7 +30,7 @@ public:
 
   void SDIV(bool is64, TReg const first, TReg const second);
 
-  void CMP(bool is64, TReg const first, uint16_t imm16);
+  void CMP(bool is64, TReg const first, uint16_t imm12);
   // cmp shifted register
   void CMP(bool is64, TReg const first, TReg const second);
 
