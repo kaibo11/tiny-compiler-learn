@@ -1,0 +1,25 @@
+name: Chapter04
+ 
+on:
+  push:
+    paths:
+        - 'Chapter04/**'
+  workflow_dispatch: 
+ 
+jobs:
+  Chapter04:
+    runs-on: ubuntu-latest
+    steps:
+      - name: install build essentials
+        run:
+          sudo apt update &&
+          sudo apt install gcc g++ libgtest-dev cmake make build-essential sed gcc-aarch64-linux-gnu g++-aarch64-linux-gnu  qemu-user
+      
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: test
+        run: |
+          cd Chapter04 && mkdir build && cd build && cmake .. -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ && make -j8 && qemu-aarch64 -L /usr/aarch64-linux-gnu ./MyTest
