@@ -27,7 +27,7 @@ int getTrapCode() {
 }
 
 TEST(JsonTest, ParseJson) {
-  std::ifstream ifs("../div.json");
+  std::ifstream ifs("../if.json");
   if (!ifs.is_open()) {
     std::cerr << "Could not open the file!" << std::endl;
     return;

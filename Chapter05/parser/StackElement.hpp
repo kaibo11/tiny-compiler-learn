@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "ModuleInfo.hpp"
 #include "OPCode.hpp"
 #include "aarch64_common.hpp"
 #include "util.hpp"
@@ -105,6 +106,8 @@ public:
       TReg reg;                    ///<  CPU register where this temporary variable is stored (Index defined by the backend, if type is
                                    ///<  SCRATCHREGISTER)
       uint32_t stackFramePosition; ///< Offset in the current function stack frame (if type is TEMPSTACK)
+
+      WasmType wasmtype;
     };
     Location location; ///< Location where this variable is stored
 

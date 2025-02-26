@@ -59,6 +59,8 @@ public:
 
   void Ret();
 
+  void B(uint32_t imm26);
+
   void notifyIfBlock() {
     ifBlockState = 1;
   }
@@ -67,23 +69,24 @@ public:
     ifBlockState = 2;
   }
 
-  void IfConditional();
+  void notifyIfEnd() {
+    ifBlockState = 0;
+  }
 
   std::vector<uint8_t> getInstructions() {
     return instructions_;
   }
 
-  auto getInIfBlockState() { // 判断 是不是在if 处理
-    return ifBlockState != 0;
-  }
-
   void notifyIfBlockEnd() {
+    instructions_.insert(instructions_.end(), ifBlockInstructions_.begin(), ifBlockInstructions_.end());
+    if (elseBlockInstructions_.size() > 0) {
+      B(elseBlockInstructions_.size() / 4 + 1); // jump else block
+    }
+    instructions_.insert(instructions_.end(), elseBlockInstructions_.begin(), elseBlockInstructions_.end());
     ifBlockState = 0;
   }
 
-  void processIfBlocks();
-
-private:
+  // private:
   void insertInstructionIntoVector(uint32_t instruction, std::vector<uint8_t> &vec);
   std::vector<uint8_t> instructions_;
   ModuleInfo &moduleInfo_;

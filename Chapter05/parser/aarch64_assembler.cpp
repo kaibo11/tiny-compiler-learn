@@ -45,7 +45,18 @@ void AArch64_Assembler::MOVK(bool const is64, TReg const reg, uint16_t const imm
   instruction |= (static_cast<uint32_t>(hw) << 21U);
   instruction |= (static_cast<uint32_t>(imm16) << 5U);
   instruction |= static_cast<uint8_t>(reg);
-  insertInstructionIntoVector(instruction, this->instructions_);
+  if (ifBlockState == 1) {
+    insertInstructionIntoVector(instruction, this->ifBlockInstructions_);
+  } else if (ifBlockState == 2) {
+    insertInstructionIntoVector(instruction, this->elseBlockInstructions_);
+  } else {
+    insertInstructionIntoVector(instruction, this->instructions_);
+  }
+}
+
+void AArch64_Assembler::B(uint32_t imm26) {
+  uint32_t instruction = 0x14000000U;
+  instruction |= imm26;
 }
 
 void AArch64_Assembler::MOVRegister(bool is64, TReg const dst, TReg const src) {
@@ -287,7 +298,4 @@ void AArch64_Assembler::blSpecial1() {
 void AArch64_Assembler::Ret() {
   uint32_t instruction = 0xD65F03C0; // RET
   insertInstructionIntoVector(instruction, this->instructions_);
-}
-
-void AArch64_Assembler::processIfBlocks() {
 }

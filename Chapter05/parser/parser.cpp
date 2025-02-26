@@ -1,7 +1,9 @@
+#include <cstddef>
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <sys/mman.h>
 #include <vector>
@@ -387,7 +389,7 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
   }
 
   bool inIfState = false;
-  bool ifHaveResult = false;
+  std::optional<WasmType> ifReturnWasmType = std::nullopt;
 
   for (size_t i = index; i < functionInstructionsCode.size();) {
     switch (static_cast<OPCode>(functionInstructionsCode[i])) {
@@ -418,45 +420,29 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       StackElement::VariableData data;
       stackElement.variableData.location.localIdx = localIndex;
       stackElement.variableData.location.reg = moduleInfo.functionsLocalVars[funcIndex][localIndex].reg;
+      stackElement.variableData.location.wasmtype = moduleInfo.functionsLocalVars[funcIndex][localIndex].wasmType;
       stack.push(stackElement);
       break;
     }
     case OPCode::IF: {
       i++;
-      WasmType ifReturnWasmType = static_cast<WasmType>(functionInstructionsCode[i++]);
-      if (ifReturnWasmType == WasmType::I32) {
-        ifHaveResult = true;
-      }
+      ifReturnWasmType = static_cast<WasmType>(functionInstructionsCode[i++]);
       assembler.notifyIfBlock();
-
       inIfState = true;
 
-      uint32_t localIndex = readULEB128(functionInstructionsCode, i);
       if (stack.empty()) {
         std::cout << "error: stack is empty, parse IF OPCODE error" << std::endl;
         exit(1);
       }
       const StackElement &stackElement = stack.top();
       switch (static_cast<uint32_t>(stackElement.type)) {
-      case StackType::CONSTANT_I32: {
-        auto const constValue = stackElement.data.constUnion.u32;
-        assembler.CMP(false, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg, constValue);
-        break;
-      }
-      case StackType::CONSTANT_I64: {
-        auto const constValue = stackElement.data.constUnion.u64;
-        assembler.CMP(true, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg, constValue);
-        break;
-      }
       case StackType::LOCAL: {
-        // to do if local var in stack.
-        bool is64 = moduleInfo.functionsLocalVars[funcIndex][localIndex].wasmType == WasmType::I64;
-        assembler.CMP(is64, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg,
-                      moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
+        bool is64 = moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].wasmType == WasmType::I64;
+        assembler.CMP(is64, moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg, 0);
         break;
       }
       default: {
-        throw std::runtime_error("Error: unknown op code");
+        throw std::runtime_error("Error: no support if compare.");
       }
       }
       stack.pop();
@@ -468,9 +454,8 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
     }
     case OPCode::ELSE: {
       i++;
-      assembler.notifyElseBlock();
-      // to do start handle if block
-      if (ifHaveResult) {
+      // to do start handle if then block
+      if (ifReturnWasmType.value() == WasmType::I32) {
         if (stack.empty()) {
           std::cout << "error: stack is empty, parse ELSE OPCode error" << std::endl;
           exit(1);
@@ -485,18 +470,12 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
           break;
         }
         default: {
-          throw std::runtime_error("Error: should not reach here.");
+          throw std::runtime_error("Error: should not reach here currently");
         }
         }
         stack.pop();
-        StackElement stackElementIfResult;
-        stackElementIfResult.type = StackType::LOCAL;
-
-        StackElement::VariableData data;
-        // stackElement.variableData.location.localIdx = localIndex;
-        stackElement.variableData.location.reg = static_cast<TReg>(moduleInfo.functionInfos[funcIndex].numLocals + 1);
-        stack.push(stackElement);
       }
+      assembler.notifyElseBlock();
       break;
     }
     case OPCode::LOCAL_SET: { // pop stack and set value
@@ -521,8 +500,7 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       case StackType::LOCAL: {
         // to do if local var in stack.
         bool is64 = moduleInfo.functionsLocalVars[funcIndex][localIndex].wasmType == WasmType::I64;
-        assembler.MOVRegister(is64, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg,
-                              moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
+        assembler.MOVRegister(is64, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg, stackElement.variableData.location.reg);
         break;
       }
       default: {
@@ -554,8 +532,7 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       case StackType::LOCAL: {
         // to do if local var in stack.
         bool is64 = moduleInfo.functionsLocalVars[funcIndex][localIndex].wasmType == WasmType::I64;
-        assembler.MOVRegister(is64, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg,
-                              moduleInfo.functionsLocalVars[funcIndex][stackElement.variableData.location.localIdx].reg);
+        assembler.MOVRegister(is64, moduleInfo.functionsLocalVars[funcIndex][localIndex].reg, stackElement.variableData.location.reg);
         break;
       }
       default: {
@@ -566,8 +543,70 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
     }
     case OPCode::END: {
       i++;
-      if (assembler.getInIfBlockState()) {
-        assembler.notifyIfBlockEnd();
+      if (inIfState) {
+        if (ifReturnWasmType.value() == WasmType::I32) {
+          if (stack.empty()) {
+            std::cout << "error: stack is empty, parse if block END OPCode error" << std::endl;
+            exit(1);
+          }
+          const StackElement &stackElement = stack.top();
+          switch (static_cast<uint32_t>(stackElement.type)) {
+          case StackType::CONSTANT_I32: {
+            auto const constValue = stackElement.data.constUnion.u32;
+            TReg ifResultReg = static_cast<TReg>(moduleInfo.functionInfos[funcIndex].numLocals + 1);
+            assembler.MOVimm(false, ifResultReg, constValue);
+            break;
+          }
+          default: {
+            throw std::runtime_error("Error: should not reach here currently");
+          }
+          }
+          stack.pop();
+          StackElement stackElementIfResult;
+          stackElementIfResult.type = StackType::LOCAL;
+
+          // StackElement::VariableData data;
+          stackElementIfResult.variableData.location.wasmtype = WasmType::I32;
+          stackElementIfResult.variableData.location.reg = static_cast<TReg>(moduleInfo.functionInfos[funcIndex].numLocals + 1);
+          stack.push(stackElement);
+        }
+        inIfState = false;
+        ifReturnWasmType = std::nullopt;
+        if (assembler.ifBlockInstructions_.size() > 0) {
+          assembler.Bcon(13, 4); //<=0 jump to else block    2=i32moveK  1= B   2+1+1 = 4
+        } else {
+          assembler.Bcon(13, 1); //<=0 jump to next block
+        }
+        assembler.notifyIfEnd();
+      } else {
+        i++;
+        if (stack.empty()) {
+          std::cout << "error: stack is empty, parse END OPCODE error" << std::endl;
+          exit(1);
+        }
+        const StackElement &stackElement = stack.top();
+        switch (static_cast<uint32_t>(stackElement.type)) {
+        case StackType::CONSTANT_I32: {
+          auto const constValue = stackElement.data.constUnion.u32;
+          assembler.MOVimm(false, TReg::R0, constValue);
+          break;
+        }
+        case StackType::CONSTANT_I64: {
+          auto const constValue = stackElement.data.constUnion.u64;
+          assembler.MOVimm(true, TReg::R0, constValue);
+          break;
+        }
+        case StackType::LOCAL: {
+          // to do if local var in stack.
+          bool is64 = stackElement.variableData.location.wasmtype == WasmType::I64; // TO USE RETURN TYPE
+          assembler.MOVRegister(is64, TReg::R0, stackElement.variableData.location.reg);
+          break;
+        }
+        default: {
+          throw std::runtime_error("Error: unknown op code");
+        }
+        }
+        stack.pop();
       }
       break;
     }
@@ -943,6 +982,38 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       stackElement.variableData.location.localIdx = left.variableData.location.localIdx;
       stackElement.variableData.location.reg = moduleInfo.functionsLocalVars[funcIndex][left.variableData.location.localIdx].reg;
       stack.push(stackElement);
+      break;
+    }
+    case OPCode::RETURN: {
+      i = 99999999;
+      if (stack.empty()) {
+        std::cout << "stack is empty, RETURN opcode do nothing" << std::endl;
+      } else {
+        const StackElement &stackElement = stack.top();
+        switch (static_cast<uint32_t>(stackElement.type)) {
+        case StackType::CONSTANT_I32: {
+          auto const constValue = stackElement.data.constUnion.u32;
+          assembler.MOVimm(false, TReg::R0, constValue);
+          break;
+        }
+        case StackType::CONSTANT_I64: {
+          auto const constValue = stackElement.data.constUnion.u64;
+          assembler.MOVimm(true, TReg::R0, constValue);
+          break;
+        }
+        case StackType::LOCAL: {
+          // to do if local var in stack.
+          bool is64 = stackElement.variableData.location.wasmtype == WasmType::I64; // TO USE RETURN TYPE
+          assembler.MOVRegister(is64, TReg::R0, stackElement.variableData.location.reg);
+          break;
+        }
+
+        default: {
+          throw std::runtime_error("Error: unknown op code");
+        }
+        }
+        stack.pop();
+      }
       break;
     }
     default: {
