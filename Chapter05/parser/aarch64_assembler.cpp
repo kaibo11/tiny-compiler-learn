@@ -288,3 +288,6 @@ void AArch64_Assembler::Ret() {
   uint32_t instruction = 0xD65F03C0; // RET
   insertInstructionIntoVector(instruction, this->instructions_);
 }
+
+void AArch64_Assembler::processIfBlocks() {
+}
