@@ -1,0 +1,5 @@
+cmake .. -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ 
+
+
+
+qemu-aarch64 -L /usr/aarch64-linux-gnu ./MyTest

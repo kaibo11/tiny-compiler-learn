@@ -100,7 +100,7 @@ public:
 
   class VariableData final {
   public:
-    union Location {
+    struct Location {
       uint32_t localIdx;           ///< Index of this local variable (if type is LOCAL)
       uint32_t globalIdx;          ///< Index of this global variable (if type is GLOBAL)
       TReg reg;                    ///<  CPU register where this temporary variable is stored (Index defined by the backend, if type is

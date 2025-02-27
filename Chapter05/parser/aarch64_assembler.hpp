@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <iostream>
 #include <sys/mman.h>
 #include <vector>
 
@@ -70,7 +71,7 @@ public:
   }
 
   void notifyIfEnd() {
-    ifBlockState = 0;
+    notifyIfBlockEnd();
   }
 
   std::vector<uint8_t> getInstructions() {
