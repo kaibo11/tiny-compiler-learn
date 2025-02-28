@@ -424,7 +424,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       break;
     }
     case OPCode::IF: {
-      std::cout << "parse if OPCode start" << std::endl;
       i++;
       ifReturnWasmType = static_cast<WasmType>(functionInstructionsCode[i++]);
       assembler.notifyIfBlock();
@@ -445,7 +444,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       }
       }
       stack.pop();
-      std::cout << "parse if OPCode end" << std::endl;
       break;
     }
     case OPCode::NOP: {
@@ -453,7 +451,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
       break;
     }
     case OPCode::ELSE: {
-      std::cout << "parse OPCode::ELSE start" << std::endl;
       i++;
       // to do start handle if then block
       if (ifReturnWasmType.value() == WasmType::I32) {
@@ -479,7 +476,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         stack.pop();
       }
       assembler.notifyElseBlock();
-      std::cout << "parse OPCode::ELSE end" << std::endl;
       break;
     }
     case OPCode::LOCAL_SET: { // pop stack and set value
@@ -548,7 +544,6 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
     case OPCode::END: {
       i++;
       if (inIfState) {
-        std::cout << "parse if OPCode::END start" << std::endl;
         if (ifReturnWasmType.value() == WasmType::I32) {
           if (stack.empty()) {
             std::cout << "error: stack is empty, parse if block END OPCode error" << std::endl;
@@ -579,16 +574,12 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         inIfState = false;
         ifReturnWasmType = std::nullopt;
         if (assembler.ifBlockInstructions_.size() > 0) {
-          std::cout << "OPCode::END here Bcon 4" << std::endl;
           assembler.Bcon(0, 4); //<=0 jump to else block    2=i32moveK  1= B   2+1+1 = 4
         } else {
-          std::cout << "OPCode::END here Bcon 1" << std::endl;
           assembler.Bcon(0, 1); //<=0 jump to next block
         }
         assembler.notifyIfEnd();
-        std::cout << "parse if OPCode::END end" << std::endl;
       } else {
-        std::cout << "parse normal OPCode::END start" << std::endl;
         i++;
         if (stack.empty()) {
           std::cout << "error: stack is empty, parse END OPCODE error" << std::endl;
@@ -618,9 +609,9 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
           throw std::runtime_error("Error: unknown op code");
         }
         }
-        std::cout << "parse normal OPCode::END end" << std::endl;
         // exit(1);
         stack.pop();
+        assembler.Ret();
       }
       break;
     }
@@ -1028,6 +1019,7 @@ std::vector<uint8_t> parseOpCode(const std::vector<uint8_t> &functionInstruction
         }
         stack.pop();
       }
+      assembler.Ret();
       break;
     }
     default: {

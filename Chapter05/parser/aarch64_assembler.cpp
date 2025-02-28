@@ -46,21 +46,18 @@ void AArch64_Assembler::MOVK(bool const is64, TReg const reg, uint16_t const imm
   instruction |= (static_cast<uint32_t>(imm16) << 5U);
   instruction |= static_cast<uint8_t>(reg);
   if (ifBlockState == 1) {
-    std::cout << "AArch64_Assembler MOVK ifBlockState" << imm16 << std::endl;
     insertInstructionIntoVector(instruction, this->ifBlockInstructions_);
   } else if (ifBlockState == 2) {
-    std::cout << "AArch64_Assembler MOVK elseBlockState" << imm16 << std::endl;
     insertInstructionIntoVector(instruction, this->elseBlockInstructions_);
   } else {
-    std::cout << "AArch64_Assembler MOVK normal" << imm16 << std::endl;
     insertInstructionIntoVector(instruction, this->instructions_);
   }
 }
 
 void AArch64_Assembler::B(uint32_t imm26) {
-  std::cout << "AArch64_Assembler B" << imm26 << std::endl;
   uint32_t instruction = 0x14000000U;
   instruction |= imm26;
+  insertInstructionIntoVector(instruction, this->instructions_);
 }
 
 void AArch64_Assembler::MOVRegister(bool is64, TReg const dst, TReg const src) {
@@ -146,8 +143,6 @@ void AArch64_Assembler::CMP(bool is64, TReg const first, uint16_t imm12) {
   instruction |= static_cast<uint16_t>(static_cast<uint16_t>(Rn) << 5U);
   instruction |= (static_cast<uint32_t>(imm12) << 10U);
 
-  std::cout << "AArch64_Assembler CMP" << imm12 << static_cast<uint32_t>(first) << std::endl;
-
   insertInstructionIntoVector(instruction, this->instructions_);
 }
 
@@ -187,7 +182,6 @@ void AArch64_Assembler::CMN(bool is64, TReg const first, uint16_t imm12) {
 }
 
 void AArch64_Assembler::Bcon(uint8_t const cond, uint32_t offset) {
-  std::cout << "AArch64_Assembler Bcon" << offset << std::endl;
   uint32_t instruction = 0x54000000U;
   instruction |= cond;
   instruction |= (offset << 5U);
